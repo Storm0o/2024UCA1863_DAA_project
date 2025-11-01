@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-M">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hamiltonian Cycle Visualization</title>
+    <!-- 1. Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 2. D3.js for visualization -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <!-- 3. Hammer.js for swipe gestures -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/hammer.js/2.0.8/hammer.min.js"></script>
+    <style>
+        /* Custom font */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden; /* Prevent body scroll */
+        }
+        /* Custom slider styles */
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 5px;
+            outline: none;
+            transition: opacity 0.2s;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #fff;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid #8b5cf6; /* violet-500 */
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #fff;
+            border-radius: 50%;
+            cursor: pointer;
+            border: 2px solid #8b5cf6;
+        }
+        /* D3 styles */
+        .link {
+            stroke: #9ca3af; /* gray-400 */
+            stroke-width: 2px;
+            transition: stroke 0.3s;
+        }
+        .link.active {
+            stroke: #ec4899; /* pink-500 */
+            stroke-width: 4px;
+        }
+        .link.path {
+            stroke: #22c55e; /* green-500 */
+            stroke-width: 5px;
+            stroke-dasharray: 8 4; /* Dashed line for final path */
+        }
+        .node circle {
+            stroke: #4f46e5; /* indigo-600 */
+            stroke-width: 3px;
+            fill: #c7d2fe; /* indigo-200 */
+            transition: fill 0.3s, r 0.3s;
+            r: 18;
+        }
+        .node.visited circle {
+            fill: #ec4899; /* pink-500 */
+        }
+        .node.current circle {
+            fill: #f59e0b; /* amber-500 */
+            r: 22;
+        }
+        .node.path circle {
+            fill: #22c55e; /* green-500 */
+        }
+        .node text {
+            font-size: 14px;
+            font-weight: 600;
+            fill: #1f2937; /* gray-800 */
+            pointer-events: none;
+            text-anchor: middle;
+            dy: 0.35em;
+        }
+    </style>
+</head>
+<body class="h-full w-full bg-gradient-to-br from-violet-200 via-violet-100 to-white">
+
+    <div class="flex flex-col h-screen p-4 md:p-6 gap-4">
+        
+        <!-- Top Control Bar -->
+        <header class="w-full bg-white/40 backdrop-blur-md rounded-xl shadow-lg p-4 flex flex-col md:flex-row items-center gap-4">
+            <h1 class="text-xl md:text-2xl font-bold text-violet-800 text-center md:text-left">Hamiltonian Cycle Visualization</h1>
+            <div class="flex-grow w-full md:w-auto">
+                <div class="flex items-center gap-3 w-full max-w-xs mx-auto md:mx-0 md:ml-auto">
+                    <span class="text-sm font-medium text-violet-700">Slow</span>
+                    <input type="range" id="speed-slider" min="100" max="1500" value="750" class="w-full">
+                    <span class="text-sm font-medium text-violet-700">Fast</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="flex-grow flex flex-col md:flex-row gap-4 min-h-0">
+
+            <!-- Visualization Area -->
+            <div class="flex-grow bg-white/30 backdrop-blur-md rounded-xl shadow-lg p-2 md:p-4 flex items-center justify-center relative overflow-hidden h-64 md:h-auto min-h-0">
+                <div id="vis-container" class="w-full h-full relative">
+                    <svg id="vis-svg" class="w-full h-full"></svg>
+                    <!-- Graph Title -->
+                    <div id="graph-title" class="absolute top-3 left-3 bg-violet-500 text-white px-3 py-1 rounded-full text-sm font-medium shadow-md">
+                        Graph 1
+                    </div>
+                    <!-- Navigation Buttons -->
+                    <button id="prev-graph" class="absolute left-2 top-1/2 -translate-y-1/2 bg-white/50 hover:bg-white p-2 rounded-full shadow-md transition-all">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-violet-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                        </svg>
+                    </button>
+                    <button id="next-graph" class="absolute right-2 top-1/2 -translate-y-1/2 bg-white/50 hover:bg-white p-2 rounded-full shadow-md transition-all">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-violet-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Side Panel: Controls & Steps -->
+            <aside class="w-full md:w-80 lg:w-96 flex-shrink-0 flex flex-col gap-4">
+                
+                <!-- Control Buttons -->
+                <div class="bg-white/40 backdrop-blur-md rounded-xl shadow-lg p-4 flex gap-4">
+                    <button id="start-btn" class="flex-1 bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                        Start
+                    </button>
+                    <button id="reset-btn" class="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-lg shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                        Reset
+                    </button>
+                </div>
+
+                <!-- Steps Panel -->
+                <div class="flex-grow bg-white/40 backdrop-blur-md rounded-xl shadow-lg p-4 flex flex-col min-h-0">
+                    <h2 class="text-lg font-bold text-violet-800 mb-3 text-center">Steps Performed</h2>
+                    <div id="steps-log-container" class="flex-grow bg-white/50 rounded-lg overflow-y-auto p-3">
+                        <ul id="steps-log" classs="space-y-1">
+                            <li class="text-gray-500 italic">Click 'Start' to begin visualization...</li>
+                        </ul>
+                    </div>
+                </div>
+
+            </aside>
+        </main>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // === DOM Elements ===
+            const svgEl = d3.select("#vis-svg");
+            const visContainer = document.getElementById('vis-container');
+            const speedSlider = document.getElementById('speed-slider');
+            const startBtn = document.getElementById('start-btn');
+            const resetBtn = document.getElementById('reset-btn');
+            const prevBtn = document.getElementById('prev-graph');
+            const nextBtn = document.getElementById('next-graph');
+            const stepsLog = document.getElementById('steps-log');
+            const graphTitle = document.getElementById('graph-title');
+
+            // === Graph Definitions ===
+            const graphs = [
+                { // Graph 1: 5-node cycle (Has cycle)
+                    nodes: [
+                        { id: 0 }, { id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }
+                    ],
+                    links: [
+                        { source: 0, target: 1 },
+                        { source: 1, target: 2 },
+                        { source: 2, target: 3 },
+                        { source: 3, target: 4 },
+                        { source: 4, target: 0 }
+                    ],
+                    name: "Graph 1: Simple 5-Cycle"
+                },
+                { // Graph 2: Complete graph K4 (Has cycle)
+                    nodes: [
+                        { id: 0 }, { id: 1 }, { id: 2 }, { id: 3 }
+                    ],
+                    links: [
+                        { source: 0, target: 1 }, { source: 0, target: 2 }, { source: 0, target: 3 },
+                        { source: 1, target: 2 }, { source: 1, target: 3 },
+                        { source: 2, target: 3 }
+                    ],
+                    name: "Graph 2: Complete K4"
+                },
+                { // Graph 3: Bipartite K2,3 (No cycle)
+                    nodes: [
+                        { id: 0 }, { id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }
+                    ],
+                    links: [
+                        { source: 0, target: 2 }, { source: 0, target: 3 }, { source: 0, target: 4 },
+                        { source: 1, target: 2 }, { source: 1, target: 3 }, { source: 1, target: 4 }
+                    ],
+                    name: "Graph 3: No HC (K2,3)"
+                }
+            ];
+
+            // === State Variables ===
+            let currentGraphIndex = 0;
+            let currentGraph;
+            let simulation;
+            let link, node;
+            let adjMatrix = [];
+            let numVertices = 0;
+            let path = [];
+            let visited = [];
+            let visualizationSpeed = 1500 - parseInt(speedSlider.value, 10); // Inverse relationship
+            let isVisualizing = false;
+            let stopVisualization = false; // Flag to stop async execution
+
+            // === Helper Functions ===
+
+            // Sleep function
+            const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+            // Log a step
+            function logStep(message, type = 'info') {
+                if (stopVisualization) return;
+                const li = document.createElement('li');
+                if (type === 'info') li.className = 'text-gray-700 text-sm';
+                if (type === 'explore') li.className = 'text-blue-600 text-sm';
+                if (type === 'backtrack') li.className = 'text-red-600 text-sm';
+                if (type === 'success') li.className = 'text-green-600 font-bold';
+                li.innerHTML = message;
+                stepsLog.appendChild(li);
+                // Auto-scroll
+                stepsLog.parentElement.scrollTop = stepsLog.parentElement.scrollHeight;
+            }
+
+            // Clear logs
+            function clearLogs() {
+                stepsLog.innerHTML = '<li class="text-gray-500 italic">Logs cleared. Ready to start.</li>';
+            }
+
+            // Update UI state
+            function setUIState(visualizing) {
+                isVisualizing = visualizing;
+                startBtn.disabled = visualizing;
+                resetBtn.disabled = visualizing;
+                prevBtn.disabled = visualizing;
+                nextBtn.disabled = visualizing;
+                speedSlider.disabled = visualizing;
+            }
+            
+            // Build Adjacency Matrix
+            function buildAdjMatrix(graph) {
+                numVertices = graph.nodes.length;
+                adjMatrix = Array(numVertices).fill(0).map(() => Array(numVertices).fill(0));
+                for (const link of graph.links) {
+                    const src = (typeof link.source === 'object') ? link.source.id : link.source;
+                    const tgt = (typeof link.target === 'object') ? link.target.id : link.target;
+                    adjMatrix[src][tgt] = 1;
+                    adjMatrix[tgt][src] = 1;
+                }
+            }
+            
+            // === D3 Drawing ===
+            function drawGraph(graph) {
+                svgEl.selectAll("*").remove(); // Clear previous graph
+                
+                const width = visContainer.clientWidth;
+                const height = visContainer.clientHeight;
+                svgEl.attr("viewBox", [0, 0, width, height]);
+
+                currentGraph = graph;
+                buildAdjMatrix(graph);
+                
+                // Copy nodes/links to avoid mutation by D3
+                const nodes = graph.nodes.map(d => ({...d}));
+                const links = graph.links.map(d => ({...d}));
+
+                simulation = d3.forceSimulation(nodes)
+                    .force("link", d3.forceLink(links).id(d => d.id).distance(100))
+                    .force("charge", d3.forceManyBody().strength(-400))
+                    .force("center", d3.forceCenter(width / 2, height / 2))
+                    .on("tick", ticked);
+
+                link = svgEl.append("g")
+                    .attr("class", "links")
+                    .selectAll("line")
+                    .data(links)
+                    .enter().append("line")
+                    .attr("class", "link")
+                    .attr("id", d => `link-${d.source.id}-${d.target.id}`);
+
+                node = svgEl.append("g")
+                    .attr("class", "nodes")
+                    .selectAll("g")
+                    .data(nodes)
+                    .enter().append("g")
+                    .attr("class", "node")
+                    .attr("id", d => `node-${d.id}`);
+                    
+                node.append("circle");
+                
+                node.append("text")
+                    .text(d => d.id);
+                
+                // Add drag capabilities
+                node.call(d3.drag()
+                    .on("start", dragstarted)
+                    .on("drag", dragged)
+                    .on("end", dragended));
+
+                function ticked() {
+                    link
+                        .attr("x1", d => d.source.x)
+                        .attr("y1", d => d.source.y)
+                        .attr("x2", d => d.target.x)
+                        .attr("y2", d => d.target.y);
+                    node
+                        .attr("transform", d => `translate(${d.x},${d.y})`);
+                }
+
+                function dragstarted(event, d) {
+                    if (!event.active) simulation.alphaTarget(0.3).restart();
+                    d.fx = d.x;
+                    d.fy = d.y;
+                }
+                function dragged(event, d) {
+                    d.fx = event.x;
+                    d.fy = event.y;
+                }
+                function dragended(event, d) {
+                    if (!event.active) simulation.alphaTarget(0);
+                    d.fx = null;
+                    d.fy = null;
+                }
+                
+                graphTitle.textContent = graph.name;
+                resetAlgorithmState();
+            }
+
+            // === Visualization & Highlighting ===
+            function highlightNode(id, className = 'visited') {
+                d3.select(`#node-${id}`).classed(className, true);
+            }
+            
+            function unhighlightNode(id, className = 'visited') {
+                d3.select(`#node-${id}`).classed(className, false);
+            }
+            
+            function highlightEdge(u, v, className = 'active') {
+                d3.select(`#link-${u}-${v}`).classed(className, true);
+                d3.select(`#link-${v}-${u}`).classed(className, true);
+            }
+
+            function unhighlightEdge(u, v, className = 'active') {
+                d3.select(`#link-${u}-${v}`).classed(className, false);
+                d3.select(`#link-${v}-${u}`).classed(className, false);
+            }
+            
+            function showFinalPath() {
+                for (let i = 0; i < path.length - 1; i++) {
+                    highlightEdge(path[i], path[i+1], 'path');
+                    highlightNode(path[i], 'path');
+                }
+                // Last edge back to start
+                highlightEdge(path[path.length - 1], path[0], 'path');
+                highlightNode(path[path.length - 1], 'path');
+            }
+
+            // === Algorithm Logic ===
+            function resetAlgorithmState() {
+                stopVisualization = true; // Signal any running async func to stop
+                path = [];
+                visited = Array(numVertices).fill(false);
+                
+                // Clear all visual styles
+                node.classed('visited', false).classed('current', false).classed('path', false);
+                link.classed('active', false).classed('path', false);
+                
+                clearLogs();
+                setUIState(false);
+            }
+
+            async function startVisualization() {
+                stopVisualization = false;
+                setUIState(true);
+                clearLogs();
+                
+                path = [];
+                visited = Array(numVertices).fill(false);
+                
+                // Start from node 0
+                path.push(0);
+                visited[0] = true;
+                
+                logStep("Starting from node 0", "info");
+                highlightNode(0, 'visited');
+                await sleep(visualizationSpeed);
+
+                const foundCycle = await findHamiltonianCycleUtil(0);
+
+                if (stopVisualization) {
+                    logStep("Visualization stopped by user.", "backtrack");
+                } else if (foundCycle) {
+                    logStep("Hamiltonian Cycle Found!", "success");
+                    // Add start node to complete the cycle visual
+                    path.push(0);
+                    showFinalPath();
+                } else {
+                    logStep("No Hamiltonian Cycle found.", "backtrack");
+                }
+                
+                setUIState(false);
+            }
+
+            async function findHamiltonianCycleUtil(u) {
+                if (stopVisualization) return false;
+
+                // Check if all vertices are included
+                if (path.length === numVertices) {
+                    // And if there's an edge from last vertex to first
+                    if (adjMatrix[u][path[0]] === 1) {
+                        highlightEdge(u, path[0], 'active');
+                        await sleep(visualizationSpeed);
+                        return true; // Cycle found
+                    }
+                    return false;
+                }
+
+                for (let v = 0; v < numVertices; v++) {
+                    // Check if v is a neighbor and not visited
+                    if (adjMatrix[u][v] === 1 && !visited[v]) {
+                        if (stopVisualization) return false;
+
+                        logStep(`Exploring edge ${u} -> ${v}`, "explore");
+                        highlightEdge(u, v, 'active');
+                        highlightNode(v, 'current');
+                        await sleep(visualizationSpeed);
+                        
+                        visited[v] = true;
+                        path.push(v);
+                        highlightNode(v, 'visited');
+                        unhighlightNode(v, 'current');
+                        
+                        if (await findHamiltonianCycleUtil(v)) {
+                            return true;
+                        }
+
+                        // Backtrack
+                        if (stopVisualization) return false;
+                        logStep(`Backtracking from ${v}. Removing edge ${u} -> ${v}`, "backtrack");
+                        unhighlightEdge(u, v, 'active');
+                        unhighlightNode(v, 'visited');
+                        path.pop();
+                        visited[v] = false;
+                        await sleep(visualizationSpeed);
+                    }
+                }
+                
+                unhighlightNode(u, 'current');
+                return false;
+            }
+
+
+            // === Event Listeners ===
+            speedSlider.addEventListener('input', (e) => {
+                // Higher slider value means *slower* speed, so we subtract it
+                visualizationSpeed = 1500 - parseInt(e.target.value, 10);
+            });
+            
+            startBtn.addEventListener('click', startVisualization);
+            resetBtn.addEventListener('click', resetAlgorithmState);
+
+            function changeGraph(direction) {
+                if (isVisualizing) return;
+                currentGraphIndex = (currentGraphIndex + direction + graphs.length) % graphs.length;
+                drawGraph(graphs[currentGraphIndex]);
+            }
+
+            prevBtn.addEventListener('click', () => changeGraph(-1));
+            nextBtn.addEventListener('click', () => changeGraph(1));
+
+            // Hammer.js Swipe Gestures
+            const hammertime = new Hammer(visContainer);
+            hammertime.on('swipeleft', () => nextBtn.click());
+            hammertime.on('swiperight', () => prevBtn.click());
+
+            // Initial draw
+            drawGraph(graphs[currentGraphIndex]);
+            
+            // Handle window resize
+            window.addEventListener('resize', () => {
+                if (currentGraph) {
+                    // Re-draw graph on resize to fit new dimensions
+                    drawGraph(currentGraph);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
