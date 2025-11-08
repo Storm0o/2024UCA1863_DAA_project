@@ -107,3 +107,15 @@ input[type="range"]::-moz-range-thumb {
     stroke-width: 4px !important;
     opacity: 0.7;
 }
+
+/* --- NEW FAILED STATE STYLES --- */
+.link.failed {
+    stroke: #ef4444; /* red-500 */
+    stroke-width: 3px;
+    stroke-dasharray: 8 4; /* Dashed line */
+}
+.node.failed circle {
+    fill: #fca5a5; /* red-300 */
+    stroke: #b91c1c; /* red-700 */
+}
+/* --- END NEW STYLES --- */
