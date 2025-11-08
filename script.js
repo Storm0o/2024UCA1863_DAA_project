@@ -214,7 +214,10 @@ document.addEventListener('DOMContentLoaded', () => {
             .attr("class", "node")
             .attr("id", d => `node-${d.id}`);
             
-        node.append("circle");
+        // --- MODIFICATION HERE ---
+        node.append("circle")
+            .attr("r", 18); // Set radius as attribute
+        // --- END MODIFICATION ---
         
         node.append("text")
             .text(d => d.id);
@@ -523,7 +526,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleEditorClick(event) {
         if (isEditMode && !isDeleteMode && !event.defaultPrevented) {
             
-            const [x, y] = d3.pointer(event);
+            const [x, y] = d3.pointer(event, svgEl.node());
             
             const maxId = editorNodes.length > 0 
                 ? Math.max(...editorNodes.map(n => n.id)) 
@@ -614,7 +617,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 .on("drag", dragged)
                 .on("end", dragended));
         
-        editorNode.append("circle");
+        // --- MODIFICATION HERE ---
+        editorNode.append("circle")
+            .attr("r", 18); // Set radius as attribute
+        // --- END MODIFICATION ---
         
         editorNode.append("text")
             .text(d => d.id);
@@ -626,7 +632,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 .attr("x2", d => d.target.x)
                 .attr("y2", d => d.target.y);
             
-            editorNode // <-- WAS THE TYPO, NOW FIXED
+            editorNode
                 .attr("transform", d => `translate(${d.x},${d.y})`);
         }
 
@@ -724,21 +730,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // --- MODIFIED: Added resetAlgorithmState() ---
     addGraphBtn.addEventListener('click', () => {
         if (!isEditMode && !isVisualizing) {
-            resetAlgorithmState(); // <-- ADDED
+            resetAlgorithmState(); 
             enterEditMode(null, null); // Create new graph
         }
     });
     
     editGraphBtn.addEventListener('click', () => {
         if (!isEditMode && !isVisualizing) {
-            resetAlgorithmState(); // <-- ADDED
+            resetAlgorithmState(); 
             enterEditMode(graphs[currentGraphIndex], currentGraphIndex);
         }
     });
-    // --- END MODIFICATION ---
 
     deleteBtn.addEventListener('click', () => {
         if (!isEditMode) return;
